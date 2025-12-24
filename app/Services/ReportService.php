@@ -143,7 +143,7 @@ class ReportService implements ReportServiceInterface
     /**
      * Save attachment to report
      */
-    protected function saveAttachment(int $reportId, $file): void
+    protected function saveAttachment(string $reportId, $file): void
     {
         $filePath = $file->store('reports/attachments', 'public');
 

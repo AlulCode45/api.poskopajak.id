@@ -13,7 +13,7 @@ class ReportRepository implements ReportRepositoryInterface
     ) {
     }
 
-    /**
+    /**`
      * Get all reports with optional filters
      */
     public function all(array $filters = [])

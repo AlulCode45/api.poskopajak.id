@@ -76,6 +76,11 @@ class ReportController extends Controller
                 'location' => 'required|string|max:255',
                 'latitude' => 'nullable|numeric',
                 'longitude' => 'nullable|numeric',
+                'reporter_name' => 'nullable|string|max:255',
+                'reporter_email' => 'nullable|email|max:255',
+                'reporter_phone' => 'nullable|string|max:20',
+                'reporter_whatsapp' => 'nullable|string|max:20',
+                'reporter_occupation' => 'nullable|string|max:100',
                 'image' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf|max:5120', // Single file (backward compatibility)
                 'attachments' => 'nullable|array|max:5', // Max 5 files
                 'attachments.*' => 'file|mimes:jpeg,png,jpg,gif,pdf|max:5120', // Each file max 5MB

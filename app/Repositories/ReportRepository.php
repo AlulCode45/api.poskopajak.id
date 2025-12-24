@@ -46,7 +46,7 @@ class ReportRepository implements ReportRepositoryInterface
     /**
      * Find a report by ID
      */
-    public function find(int $id)
+    public function find(string $id)
     {
         return $this->model->with(['user', 'attachments', 'updatedBy'])->findOrFail($id);
     }
@@ -62,7 +62,7 @@ class ReportRepository implements ReportRepositoryInterface
     /**
      * Update a report
      */
-    public function update(int $id, array $data)
+    public function update(string $id, array $data)
     {
         $report = $this->find($id);
         $report->update($data);
@@ -72,7 +72,7 @@ class ReportRepository implements ReportRepositoryInterface
     /**
      * Delete a report
      */
-    public function delete(int $id)
+    public function delete(string $id)
     {
         $report = $this->find($id);
         return $report->delete();

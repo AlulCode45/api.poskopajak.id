@@ -52,7 +52,7 @@ class ReportController extends Controller
 
             return response()->json([
                 'message' => 'Report created successfully',
-                'report' => $report->load('user'),
+                'data' => $report->load('user'),
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -63,9 +63,60 @@ class ReportController extends Controller
     }
 
     /**
+     * Store a public report (no authentication required).
+     */
+    public function storePublic(Request $request): JsonResponse
+    {
+        try {
+            // Validate request
+            $validated = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'required|string',
+                'category' => 'required|string|max:100',
+                'location' => 'required|string|max:255',
+                'latitude' => 'nullable|numeric',
+                'longitude' => 'nullable|numeric',
+                'image' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf|max:5120', // Single file (backward compatibility)
+                'attachments' => 'nullable|array|max:5', // Max 5 files
+                'attachments.*' => 'file|mimes:jpeg,png,jpg,gif,pdf|max:5120', // Each file max 5MB
+            ]);
+
+            // Create anonymous/guest user or use a system user
+            $systemUserId = 1;
+
+            $report = $this->reportService->createReport(
+                $validated,
+                $systemUserId
+            );
+
+            return response()->json([
+                'message' => 'Laporan berhasil dikirim',
+                'data' => [
+                    'id' => $report->id,
+                    'title' => $report->title,
+                    'status' => $report->status,
+                    'image_url' => $report->image_url,
+                    'attachments' => $report->attachments,
+                    'created_at' => $report->created_at,
+                ],
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengirim laporan',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Display the specified resource.
      */
-    public function show(int $id): JsonResponse
+    public function show(string $id): JsonResponse
     {
         try {
             $report = $this->reportService->getReportById($id);
@@ -80,7 +131,7 @@ class ReportController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateReportRequest $request, int $id): JsonResponse
+    public function update(UpdateReportRequest $request, string $id): JsonResponse
     {
         try {
             $user = $request->user();
@@ -112,7 +163,7 @@ class ReportController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         try {
             $user = $request->user();
@@ -153,6 +204,120 @@ class ReportController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch statistics',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Update report status with admin notes.
+     */
+    public function updateStatus(Request $request, string $id): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Check if user has admin or moderator role
+            if (!$user->hasRole(['admin', 'moderator'])) {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin or moderator role required.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'status' => 'required|in:pending,reviewed,resolved,rejected',
+                'admin_notes' => 'nullable|string',
+            ]);
+
+            $report = $this->reportService->updateReportStatus(
+                $id,
+                $validated['status'],
+                $validated['admin_notes'] ?? null,
+                $user->id
+            );
+
+            return response()->json([
+                'message' => 'Status berhasil diperbarui',
+                'data' => $report,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal memperbarui status',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk update status for multiple reports.
+     */
+    public function bulkUpdateStatus(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Check if user has admin role
+            if (!$user->hasRole('admin')) {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin role required.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'report_ids' => 'required|array',
+                'report_ids.*' => 'integer|exists:reports,id',
+                'status' => 'required|in:pending,reviewed,resolved,rejected',
+                'admin_notes' => 'nullable|string',
+            ]);
+
+            $updated = $this->reportService->bulkUpdateStatus(
+                $validated['report_ids'],
+                $validated['status'],
+                $validated['admin_notes'] ?? null,
+                $user->id
+            );
+
+            return response()->json([
+                'message' => "Berhasil memperbarui {$updated} laporan",
+                'updated_count' => $updated,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal memperbarui status',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk delete reports.
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            // Check if user has admin role
+            if (!$user->hasRole('admin')) {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin role required.',
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'report_ids' => 'required|array',
+                'report_ids.*' => 'integer|exists:reports,id',
+            ]);
+
+            $deleted = $this->reportService->bulkDelete($validated['report_ids']);
+
+            return response()->json([
+                'message' => "Berhasil menghapus {$deleted} laporan",
+                'deleted_count' => $deleted,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menghapus laporan',
                 'error' => $e->getMessage(),
             ], 500);
         }

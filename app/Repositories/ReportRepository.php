@@ -13,12 +13,12 @@ class ReportRepository implements ReportRepositoryInterface
     ) {
     }
 
-    /**`
+    /**
      * Get all reports with optional filters
      */
     public function all(array $filters = [])
     {
-        $query = $this->model->with('user');
+        $query = $this->model->with(['user', 'attachments', 'updatedBy']);
 
         // Apply filters
         if (!empty($filters['status'])) {
@@ -48,7 +48,7 @@ class ReportRepository implements ReportRepositoryInterface
      */
     public function find(int $id)
     {
-        return $this->model->with('user')->findOrFail($id);
+        return $this->model->with(['user', 'attachments', 'updatedBy'])->findOrFail($id);
     }
 
     /**
@@ -83,7 +83,7 @@ class ReportRepository implements ReportRepositoryInterface
      */
     public function getUserReports(int $userId, array $filters = [])
     {
-        $query = $this->model->where('user_id', $userId)->with('user');
+        $query = $this->model->where('user_id', $userId)->with(['user', 'attachments']);
 
         if (!empty($filters['status'])) {
             $query->where('status', $filters['status']);

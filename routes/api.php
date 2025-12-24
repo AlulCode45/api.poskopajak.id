@@ -13,6 +13,9 @@ Route::get('/health', function () {
     ]);
 });
 
+// Public report submission (for landing page)
+Route::post('/reports/public', [ReportController::class, 'storePublic']);
+
 // Authentication routes
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
@@ -31,14 +34,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard stats
     Route::get('/dashboard/stats', [ReportController::class, 'stats']);
 
-    // Admin only routes
-    Route::middleware('role:admin')->group(function () {
-        // Add admin-specific routes here in the future
-    });
+    // Status update - will check role in controller
+    Route::patch('/reports/{report}/status', [ReportController::class, 'updateStatus']);
 
-    // Moderator and Admin routes
-    Route::middleware('role:admin|moderator')->group(function () {
-        // Routes for report status management
-        Route::patch('/reports/{report}/status', [ReportController::class, 'updateStatus']);
-    });
+    // Bulk actions - will check role in controller
+    Route::post('/reports/bulk/status', [ReportController::class, 'bulkUpdateStatus']);
+    Route::post('/reports/bulk/delete', [ReportController::class, 'bulkDelete']);
 });

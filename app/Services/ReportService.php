@@ -30,7 +30,7 @@ class ReportService implements ReportServiceInterface
     /**
      * Get single report by ID
      */
-    public function getReportById(int $id)
+    public function getReportById(string $id)
     {
         return $this->reportRepository->find($id);
     }
@@ -43,19 +43,35 @@ class ReportService implements ReportServiceInterface
         $data['user_id'] = $userId;
         $data['status'] = 'pending';
 
-        // Handle image upload if exists
+        // Handle single image upload if exists (backward compatibility)
         if (isset($data['image']) && $data['image']) {
             $data['image_path'] = $this->handleImageUpload($data['image']);
             unset($data['image']);
         }
 
-        return $this->reportRepository->create($data);
+        // Handle multiple attachments if exists
+        $attachments = null;
+        if (isset($data['attachments']) && is_array($data['attachments'])) {
+            $attachments = $data['attachments'];
+            unset($data['attachments']);
+        }
+
+        $report = $this->reportRepository->create($data);
+
+        // Upload and save attachments
+        if ($attachments) {
+            foreach ($attachments as $file) {
+                $this->saveAttachment($report->id, $file);
+            }
+        }
+
+        return $report->load('attachments');
     }
 
     /**
      * Update existing report
      */
-    public function updateReport(int $id, array $data, int $userId, bool $isAdmin)
+    public function updateReport(string $id, array $data, int $userId, bool $isAdmin)
     {
         $report = $this->reportRepository->find($id);
 
@@ -80,7 +96,7 @@ class ReportService implements ReportServiceInterface
     /**
      * Delete a report
      */
-    public function deleteReport(int $id, int $userId, bool $isAdmin)
+    public function deleteReport(string $id, int $userId, bool $isAdmin)
     {
         $report = $this->reportRepository->find($id);
 
@@ -125,10 +141,98 @@ class ReportService implements ReportServiceInterface
     }
 
     /**
+     * Save attachment to report
+     */
+    protected function saveAttachment(int $reportId, $file): void
+    {
+        $filePath = $file->store('reports/attachments', 'public');
+
+        \App\Models\ReportAttachment::create([
+            'report_id' => $reportId,
+            'file_path' => $filePath,
+            'file_name' => $file->getClientOriginalName(),
+            'file_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+        ]);
+    }
+
+    /**
      * Delete image from storage
      */
     protected function deleteImage(string $path): void
     {
         Storage::disk('public')->delete($path);
+    }
+
+    /**
+     * Update report status with admin notes
+     */
+    public function updateReportStatus(string $id, string $status, ?string $adminNotes, int $updatedBy)
+    {
+        $report = $this->reportRepository->find($id);
+
+        $data = [
+            'status' => $status,
+            'updated_by' => $updatedBy,
+        ];
+
+        if ($adminNotes !== null) {
+            $data['admin_notes'] = $adminNotes;
+        }
+
+        return $this->reportRepository->update($id, $data);
+    }
+
+    /**
+     * Bulk update status for multiple reports
+     */
+    public function bulkUpdateStatus(array $reportIds, string $status, ?string $adminNotes, int $updatedBy): int
+    {
+        $count = 0;
+
+        foreach ($reportIds as $id) {
+            try {
+                $this->updateReportStatus($id, $status, $adminNotes, $updatedBy);
+                $count++;
+            } catch (\Exception $e) {
+                // Continue with other reports
+                continue;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Bulk delete reports
+     */
+    public function bulkDelete(array $reportIds): int
+    {
+        $count = 0;
+
+        foreach ($reportIds as $id) {
+            try {
+                $report = $this->reportRepository->find($id);
+
+                // Delete attachments
+                if ($report->attachments) {
+                    foreach ($report->attachments as $attachment) {
+                        Storage::disk('public')->delete($attachment->file_path);
+                    }
+                }
+
+                // Delete old image
+                if ($report->image_path) {
+                    $this->deleteImage($report->image_path);
+                }
+
+                $this->reportRepository->delete($id);
+                $count++;
+            } catch (\Exception $e) {
+                continue;
+            }
+        }
+
+        return $count;
     }
 }

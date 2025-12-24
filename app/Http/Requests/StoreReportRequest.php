@@ -26,7 +26,7 @@ class StoreReportRequest extends FormRequest
             'location' => 'required|string|max:255',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif,pdf|max:5120', // 5MB max, include PDF
         ];
     }
 }
